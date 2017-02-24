@@ -107,9 +107,11 @@ if [ -z "$scan" ]; then
 	scan="172.17.0.0/24"
 fi
 
-scan=(${scan//,/ })
+scan=$(echo $scan | tr ',' ' ')
 
-for ip in $(nmap -sn $network | grep "scan report" | grep -Po "[0-9.]+"); do
+ips=$(nmap -sn $network | grep "scan report" | grep -Po "[0-9.]+")
+echo $ips
+for ip in $ips; do
 	if [ -n "$(ip route get $ip | grep local || true)" ]; then
 		continue
 	fi
@@ -120,10 +122,11 @@ for ip in $(nmap -sn $network | grep "scan report" | grep -Po "[0-9.]+"); do
 			trap "{ ip route add $prev; }" EXIT
 		fi
 		ip route add $net via $ip
-		trap "{ ip route delete $net via $ip; ip route add $prev; }" EXIT
-		found=$(nmap -PA --open -p 22 $net | grep "scan report" | grep -Po "[0-9.]+")
-		if [ -n found ]; then
-			# echo "Found ips for host $ip:\n$found"
+		trap "{ ip route delete $net via $ip; [ -n "'"'"$prev"'"'" ] && ip route add $prev; }" EXIT
+		found=$(nmap -PA --open -p 22 $net | grep "scan report" | grep -Po "[0-9.]+" || true)
+		if [ -n "$found" ]; then
+			echo "Found ips for host $ip:"
+			echo "$found"
 			for found_ip in $found; do
 				for u in $us; do
 					for p in $ps; do
